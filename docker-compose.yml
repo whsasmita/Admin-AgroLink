@@ -1,0 +1,15 @@
+version: "3.8"
+# Testing Production 
+services:
+  agrolink-admin:
+    image: darmawiguna/agrolink-admin:latest
+    container_name: agrolink-admin
+    restart: unless-stopped
+    ports:
+      - "3002:3000"   # Caddy reverse_proxy -> 127.0.0.1:3000
+    command: []  # gunakan CMD default dari Dockerfile (serve -s app -l 3000)
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000 || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
