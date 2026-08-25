@@ -23,7 +23,6 @@ import {
   ReloadOutlined,
   DownloadOutlined,
   ClearOutlined,
-  CheckCircleOutlined,
   ShopOutlined,
   CarOutlined,
   ToolOutlined,
@@ -119,40 +118,18 @@ const SERVICE_CATEGORIES = {
 
 // Deteksi detail kategori layanan dari record transaksi
 const detectServiceCategory = (record) => {
-  const type = String(
-    record.transaction_type || record.service_type || "",
-  ).toLowerCase();
+  const type = String(record.transaction_type || record.service_type || "").toLowerCase();
   const context = String(
-    record.context_info ||
-      record.context_title ||
-      record.description ||
-      record.product_name ||
-      "",
+    record.context_info || record.context_title || record.description || record.product_name || ""
   ).toLowerCase();
 
-  if (
-    type.includes("chatbot") ||
-    context.includes("chatbot") ||
-    context.includes("ai") ||
-    type.includes("ai")
-  ) {
+  if (type.includes("chatbot") || context.includes("chatbot") || context.includes("ai") || type.includes("ai")) {
     return SERVICE_CATEGORIES.chatbot;
   }
-  if (
-    type.includes("kemitraan") ||
-    context.includes("kemitraan") ||
-    context.includes("b2b") ||
-    context.includes("partner")
-  ) {
+  if (type.includes("kemitraan") || context.includes("kemitraan") || context.includes("b2b") || context.includes("partner")) {
     return SERVICE_CATEGORIES.kemitraan;
   }
-  if (
-    type.includes("ekspedisi") ||
-    type.includes("delivery") ||
-    context.includes("driver") ||
-    context.includes("ekspedisi") ||
-    context.includes("angkut")
-  ) {
+  if (type.includes("ekspedisi") || type.includes("delivery") || context.includes("driver") || context.includes("ekspedisi") || context.includes("angkut")) {
     return SERVICE_CATEGORIES.ekspedisi;
   }
   if (
@@ -170,19 +147,10 @@ const detectServiceCategory = (record) => {
   ) {
     return SERVICE_CATEGORIES.ecommerce;
   }
-  if (
-    context.includes("peternakan") ||
-    context.includes("ternak") ||
-    context.includes("livestock")
-  ) {
+  if (context.includes("peternakan") || context.includes("ternak") || context.includes("livestock")) {
     return SERVICE_CATEGORIES.pekerja_ternak;
   }
-  if (
-    context.includes("pertukangan") ||
-    context.includes("tukang") ||
-    context.includes("konstruksi") ||
-    context.includes("bangunan")
-  ) {
+  if (context.includes("pertukangan") || context.includes("tukang") || context.includes("konstruksi") || context.includes("bangunan")) {
     return SERVICE_CATEGORIES.pekerja_tukang;
   }
 
@@ -224,21 +192,11 @@ const TransactionsPage = () => {
   const [activePreset, setActivePreset] = useState("all");
 
   // Fetch Transaksi Terpaginasi
-  const fetchTransactions = async (
-    page = 1,
-    pageSize = 10,
-    search = "",
-    service = "",
-  ) => {
+  const fetchTransactions = async (page = 1, pageSize = 10, search = "", service = "") => {
     setLoading(true);
     setError(null);
     try {
-      const response = await getAllTransactions(
-        page,
-        pageSize,
-        search,
-        service,
-      );
+      const response = await getAllTransactions(page, pageSize, search, service);
       const result = response.data?.data;
 
       const items = result?.data || (Array.isArray(result) ? result : []);
@@ -368,26 +326,11 @@ const TransactionsPage = () => {
       // Filter status
       if (statusFilter) {
         const itemStatus = String(item.status || "paid").toLowerCase();
-        if (
-          statusFilter === "paid" &&
-          !(
-            itemStatus === "paid" ||
-            itemStatus === "success" ||
-            itemStatus === "berhasil"
-          )
-        ) {
+        if (statusFilter === "paid" && !(itemStatus === "paid" || itemStatus === "success" || itemStatus === "berhasil")) {
           return false;
         }
-        if (statusFilter === "pending" && itemStatus !== "pending")
-          return false;
-        if (
-          statusFilter === "failed" &&
-          !(
-            itemStatus === "failed" ||
-            itemStatus === "gagal" ||
-            itemStatus === "error"
-          )
-        ) {
+        if (statusFilter === "pending" && itemStatus !== "pending") return false;
+        if (statusFilter === "failed" && !(itemStatus === "failed" || itemStatus === "gagal" || itemStatus === "error")) {
           return false;
         }
       }
@@ -414,15 +357,7 @@ const TransactionsPage = () => {
 
       return true;
     });
-  }, [
-    allTransactions,
-    data,
-    dateRange,
-    statusFilter,
-    paymentFilter,
-    serviceFilter,
-    searchText,
-  ]);
+  }, [allTransactions, data, dateRange, statusFilter, paymentFilter, serviceFilter, searchText]);
 
   // Perhitungan Ringkasan Metrik Transaksi MENYELURUH (593 Data Transaksi)
   const fullSummaryKPIs = useMemo(() => {
@@ -437,9 +372,8 @@ const TransactionsPage = () => {
       const gross = item.amount_paid || item.amount || item.total_amount || 0;
       const cat = detectServiceCategory(item);
 
-      const fee =
-        item.platform_fee ?? item.net_profit ?? gross * cat.commissionRate;
-      const payout = item.payee_amount ?? item.partner_amount ?? gross - fee;
+      const fee = item.platform_fee ?? item.net_profit ?? (gross * cat.commissionRate);
+      const payout = item.payee_amount ?? item.partner_amount ?? (gross - fee);
 
       totalGross += gross;
       totalPlatformFee += fee;
@@ -455,26 +389,23 @@ const TransactionsPage = () => {
     if (activePreset === "sebelum") {
       totalGross = 66322000;
       totalPlatformFee = 6082440; // Keuntungan Kotor Periode Sebelum
-      totalNetProfit = 5396060; // Keuntungan Bersih Periode Sebelum
+      totalNetProfit = 5396060;   // Keuntungan Bersih Periode Sebelum
       totalPartnerPayout = 60239560;
       totalCount = 236;
     } else if (activePreset === "sesudah") {
       totalGross = 105194500;
       totalPlatformFee = 21472800; // Keuntungan Kotor Periode Sesudah
-      totalNetProfit = 20473376; // Keuntungan Bersih Periode Sesudah
+      totalNetProfit = 20473376;   // Keuntungan Bersih Periode Sesudah
       totalPartnerPayout = 83721700;
       totalCount = 357;
     } else if (activePreset === "all") {
       totalGross = 171516500;
       totalPlatformFee = 27555240; // Keuntungan Kotor Keseluruhan
-      totalNetProfit = 25869436; // Keuntungan Bersih Keseluruhan
+      totalNetProfit = 25869436;   // Keuntungan Bersih Keseluruhan
       totalPartnerPayout = 143961260;
       totalCount = 593;
     } else {
-      totalNetProfit = Math.max(
-        0,
-        totalPlatformFee - Math.round(totalCount * 2842),
-      );
+      totalNetProfit = Math.max(0, totalPlatformFee - Math.round(totalCount * 2842));
     }
 
     return {
@@ -497,18 +428,10 @@ const TransactionsPage = () => {
       width: 140,
       render: (text) => {
         const rawId = text || "-";
-        const shortId =
-          rawId.length > 10 ? `${rawId.substring(0, 8)}...` : rawId;
+        const shortId = rawId.length > 10 ? `${rawId.substring(0, 8)}...` : rawId;
         return (
           <Tooltip title={`ID Lengkap: ${rawId}`}>
-            <span
-              style={{
-                fontFamily: "monospace",
-                fontWeight: 600,
-                color: "#1677ff",
-                cursor: "pointer",
-              }}
-            >
+            <span style={{ fontFamily: "monospace", fontWeight: 600, color: "#1677ff", cursor: "pointer" }}>
               #{shortId}
             </span>
           </Tooltip>
@@ -558,9 +481,7 @@ const TransactionsPage = () => {
             </Tag>
             <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
               <span>{cat.subLabel}</span>
-              <span
-                style={{ marginLeft: 6, fontWeight: 600, color: "#111827" }}
-              >
+              <span style={{ marginLeft: 6, fontWeight: 600, color: "#111827" }}>
                 (Komisi: {cat.rateLabel})
               </span>
             </div>
@@ -618,21 +539,14 @@ const TransactionsPage = () => {
                 border: "none",
               }}
             >
-              {conf.isBank ? (
-                <BankOutlined style={{ marginRight: 4 }} />
-              ) : (
-                <WalletOutlined style={{ marginRight: 4 }} />
-              )}
+              {conf.isBank ? <BankOutlined style={{ marginRight: 4 }} /> : <WalletOutlined style={{ marginRight: 4 }} />}
               {conf.label}
             </Tag>
           );
         }
 
         return (
-          <Tag
-            color="geekblue"
-            style={{ borderRadius: 4, fontWeight: 500, fontSize: 11 }}
-          >
+          <Tag color="geekblue" style={{ borderRadius: 4, fontWeight: 500, fontSize: 11 }}>
             {String(method).toUpperCase()}
           </Tag>
         );
@@ -644,8 +558,7 @@ const TransactionsPage = () => {
       key: "amount_paid",
       align: "right",
       render: (_, record) => {
-        const amount =
-          record.amount_paid ?? record.amount ?? record.total_amount ?? 0;
+        const amount = record.amount_paid ?? record.amount ?? record.total_amount ?? 0;
         return (
           <span style={{ fontWeight: 700, fontSize: 14, color: "#111827" }}>
             {formatter.format(amount)}
@@ -658,17 +571,11 @@ const TransactionsPage = () => {
       key: "platform_fee",
       align: "right",
       render: (_, record) => {
-        const gross =
-          record.amount_paid ?? record.amount ?? record.total_amount ?? 0;
+        const gross = record.amount_paid ?? record.amount ?? record.total_amount ?? 0;
         const cat = detectServiceCategory(record);
-        const fee =
-          record.platform_fee ??
-          record.net_profit ??
-          gross * cat.commissionRate;
+        const fee = record.platform_fee ?? record.net_profit ?? (gross * cat.commissionRate);
         return (
-          <Tooltip
-            title={`Dihitung dari komisi ${cat.rateLabel} atas ${formatter.format(gross)}`}
-          >
+          <Tooltip title={`Dihitung dari komisi ${cat.rateLabel} atas ${formatter.format(gross)}`}>
             <span style={{ fontWeight: 600, color: "#389e0d", fontSize: 13 }}>
               +{formatter.format(fee)}
             </span>
@@ -681,15 +588,10 @@ const TransactionsPage = () => {
       key: "partner_payout",
       align: "right",
       render: (_, record) => {
-        const gross =
-          record.amount_paid ?? record.amount ?? record.total_amount ?? 0;
+        const gross = record.amount_paid ?? record.amount ?? record.total_amount ?? 0;
         const cat = detectServiceCategory(record);
-        const fee =
-          record.platform_fee ??
-          record.net_profit ??
-          gross * cat.commissionRate;
-        const payout =
-          record.payee_amount ?? record.partner_amount ?? gross - fee;
+        const fee = record.platform_fee ?? record.net_profit ?? (gross * cat.commissionRate);
+        const payout = record.payee_amount ?? record.partner_amount ?? (gross - fee);
 
         return (
           <span style={{ fontWeight: 600, color: "#1677ff", fontSize: 13 }}>
@@ -708,11 +610,7 @@ const TransactionsPage = () => {
           return (
             <Badge
               status="success"
-              text={
-                <span style={{ fontWeight: 600, color: "#389e0d" }}>
-                  BERHASIL
-                </span>
-              }
+              text={<span style={{ fontWeight: 600, color: "#389e0d" }}>BERHASIL</span>}
             />
           );
         }
@@ -720,20 +618,14 @@ const TransactionsPage = () => {
           return (
             <Badge
               status="warning"
-              text={
-                <span style={{ fontWeight: 600, color: "#fa8c16" }}>
-                  PENDING
-                </span>
-              }
+              text={<span style={{ fontWeight: 600, color: "#fa8c16" }}>PENDING</span>}
             />
           );
         }
         return (
           <Badge
             status="error"
-            text={
-              <span style={{ fontWeight: 600, color: "#cf1322" }}>GAGAL</span>
-            }
+            text={<span style={{ fontWeight: 600, color: "#cf1322" }}>GAGAL</span>}
           />
         );
       },
@@ -763,8 +655,7 @@ const TransactionsPage = () => {
             Daftar & Riwayat Transaksi
           </Title>
           <Text type="secondary">
-            Ringkasan 593 transaksi platform, verifikasi komisi layanan, dan
-            pemantauan arus kas mitra AgroLink.
+            Ringkasan 593 transaksi platform, verifikasi komisi layanan, dan pemantauan arus kas mitra AgroLink.
           </Text>
         </div>
 
@@ -773,12 +664,7 @@ const TransactionsPage = () => {
             <Button
               icon={<ReloadOutlined spin={loading || summaryLoading} />}
               onClick={() => {
-                fetchTransactions(
-                  1,
-                  pagination.pageSize,
-                  searchText,
-                  serviceFilter,
-                );
+                fetchTransactions(1, pagination.pageSize, searchText, serviceFilter);
                 fetchAllTransactionsSummary();
               }}
               disabled={loading}
@@ -799,28 +685,130 @@ const TransactionsPage = () => {
         </Space>
       </div>
 
+      {/* 2. Kartu KPI Finansial Transaksi (Fokus pada Keuntungan Platform & GMV) */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} sm={12} lg={6}>
+          <Card className="modern-card" style={{ borderLeft: "4px solid #1677ff" }}>
+            <Statistic
+              title="Keuntungan Kotor Platform (Gross)"
+              value={formatter.format(fullSummaryKPIs.totalPlatformFee)}
+              prefix={<DollarCircleOutlined style={{ color: "#1677ff" }} />}
+              valueStyle={{ color: "#1677ff", fontWeight: 700, fontSize: 20 }}
+            />
+          </Card>
+        </Col>
+
+        <Col xs={24} sm={12} lg={6}>
+          <Card className="modern-card" style={{ borderLeft: "4px solid #389e0d" }}>
+            <Statistic
+              title="Keuntungan Bersih (Net Profit)"
+              value={formatter.format(fullSummaryKPIs.totalNetProfit)}
+              prefix={<DollarCircleOutlined style={{ color: "#389e0d" }} />}
+              valueStyle={{ color: "#389e0d", fontWeight: 700, fontSize: 20 }}
+            />
+          </Card>
+        </Col>
+
+        <Col xs={24} sm={12} lg={6}>
+          <Card className="modern-card" style={{ borderLeft: "4px solid #722ed1" }}>
+            <Statistic
+              title="Disalurkan ke Mitra/Pekerja"
+              value={formatter.format(fullSummaryKPIs.totalPartnerPayout)}
+              prefix={<DollarCircleOutlined style={{ color: "#722ed1" }} />}
+              valueStyle={{ color: "#722ed1", fontWeight: 700, fontSize: 20 }}
+            />
+          </Card>
+        </Col>
+
+        <Col xs={24} sm={12} lg={6}>
+          <Card className="modern-card" style={{ borderLeft: "4px solid #faad14" }}>
+            <Statistic
+              title={
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>Total Gross (GMV)</span>
+                  <Tag color="orange" style={{ fontSize: 10, lineHeight: "16px", margin: 0 }}>
+                    {fullSummaryKPIs.totalCount} Trx
+                  </Tag>
+                </div>
+              }
+              value={formatter.format(fullSummaryKPIs.totalGross)}
+              prefix={<DollarCircleOutlined style={{ color: "#faad14" }} />}
+              valueStyle={{ color: "#111827", fontWeight: 700, fontSize: 20 }}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* 3. Filter Periode Cepat (Periode Sebelum & Sesudah) */}
+      <Card className="modern-card" style={{ marginBottom: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <CalendarOutlined style={{ color: "#1677ff", fontSize: 16 }} />
+            <Text strong style={{ color: "#374151" }}>
+              Filter Periode:
+            </Text>
+            <Space wrap size={8}>
+              <Button
+                type={activePreset === "all" ? "primary" : "default"}
+                onClick={() => handlePresetSelect("all")}
+                size="middle"
+              >
+                Semua Waktu (593 Trx)
+              </Button>
+              <Button
+                type={activePreset === "sebelum" ? "primary" : "default"}
+                onClick={() => handlePresetSelect("sebelum")}
+                size="middle"
+              >
+                🌱 Periode Sebelum (1 Sep 2025 – 31 Mei 2026)
+              </Button>
+              <Button
+                type={activePreset === "sesudah" ? "primary" : "default"}
+                onClick={() => handlePresetSelect("sesudah")}
+                size="middle"
+              >
+                🚀 Periode Sesudah (1 Jun 2026 – 20 Agu 2026)
+              </Button>
+              <Button
+                type={activePreset === "30d" ? "primary" : "default"}
+                onClick={() => handlePresetSelect("30d")}
+                size="middle"
+              >
+                30 Hari Terakhir
+              </Button>
+              <Button
+                type={activePreset === "7d" ? "primary" : "default"}
+                onClick={() => handlePresetSelect("7d")}
+                size="middle"
+              >
+                7 Hari Terakhir
+              </Button>
+            </Space>
+          </div>
+
+          <Space align="center">
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              Rentang Kustom:
+            </Text>
+            <RangePicker
+              value={dateRange}
+              onChange={handleDateChange}
+              format="DD/MM/YYYY"
+              style={{ width: 240 }}
+            />
+          </Space>
+        </div>
+      </Card>
+
       {/* 4. Tabel Transaksi dengan Filter Lengkap */}
       <Card
         className="modern-card"
         title={
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              flexWrap: "wrap",
-            }}
-          >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <DollarCircleOutlined style={{ color: "#1677ff", fontSize: 18 }} />
-            <span style={{ fontWeight: 600, fontSize: 16 }}>
-              Rincian Transaksi
-            </span>
+            <span style={{ fontWeight: 600, fontSize: 16 }}>Rincian Transaksi</span>
             {serviceFilter && (
-              <Tag
-                color={SERVICE_CATEGORIES[serviceFilter]?.color}
-                closable
-                onClose={() => setServiceFilter("")}
-              >
+              <Tag color={SERVICE_CATEGORIES[serviceFilter]?.color} closable onClose={() => setServiceFilter("")}>
                 Layanan: {SERVICE_CATEGORIES[serviceFilter]?.label}
               </Tag>
             )}
@@ -842,9 +830,7 @@ const TransactionsPage = () => {
               onChange={(val) => setServiceFilter(val || "")}
             >
               <Option value="pekerja_tani">🟢 Pekerja (Pertanian) - 8%</Option>
-              <Option value="pekerja_ternak">
-                🟠 Pekerja (Peternakan) - 8%
-              </Option>
+              <Option value="pekerja_ternak">🟠 Pekerja (Peternakan) - 8%</Option>
               <Option value="pekerja_tukang">🔵 Pekerja (Tukang) - 8%</Option>
               <Option value="ekspedisi">🚚 Ekspedisi (Driver) - 11%</Option>
               <Option value="ecommerce">🛒 E-Commerce - 10%</Option>
@@ -892,11 +878,7 @@ const TransactionsPage = () => {
               style={{ width: 210 }}
             />
 
-            {(searchText ||
-              serviceFilter ||
-              paymentFilter ||
-              statusFilter ||
-              dateRange) && (
+            {(searchText || serviceFilter || paymentFilter || statusFilter || dateRange) && (
               <Tooltip title="Hapus semua filter">
                 <Button icon={<ClearOutlined />} onClick={handleResetFilters}>
                   Reset
@@ -920,9 +902,7 @@ const TransactionsPage = () => {
         <Table
           columns={columns}
           dataSource={filteredData}
-          rowKey={(record) =>
-            record.transaction_id || record.id || Math.random().toString()
-          }
+          rowKey={(record) => record.transaction_id || record.id || Math.random().toString()}
           loading={loading}
           pagination={{
             pageSize: 10,
@@ -930,11 +910,7 @@ const TransactionsPage = () => {
             pageSizeOptions: ["10", "20", "50", "100"],
             showTotal: (total, range) => (
               <Text type="secondary" style={{ fontSize: 13 }}>
-                Menampilkan{" "}
-                <b>
-                  {range[0]}-{range[1]}
-                </b>{" "}
-                dari total <b>{total}</b> transaksi
+                Menampilkan <b>{range[0]}-{range[1]}</b> dari total <b>{total}</b> transaksi
               </Text>
             ),
           }}
