@@ -101,9 +101,14 @@ const PayoutsPage = () => {
             title: 'Peran',
             dataIndex: 'payee_type',
             key: 'payee_type',
-            render: (type) => (
-                <Tag color={type === 'worker' ? 'blue' : 'green'}>{type.toUpperCase()}</Tag>
-            ),
+            render: (type) => {
+                const t = type?.toLowerCase();
+                if (t === 'farmer') return <Tag color="green">PEMBERI KERJA</Tag>;
+                if (t === 'worker') return <Tag color="blue">PEKERJA</Tag>;
+                if (t === 'driver') return <Tag color="orange">DRIVER</Tag>;
+                if (t === 'mitra') return <Tag color="purple">MITRA</Tag>;
+                return <Tag color="default">{type ? type.toUpperCase() : '-'}</Tag>;
+            },
         },
         {
             title: 'Jumlah',

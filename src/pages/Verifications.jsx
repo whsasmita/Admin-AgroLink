@@ -86,7 +86,14 @@ const VerificationsPage = () => {
             title: 'Peran',
             dataIndex: ['User', 'Role'],
             key: 'userRole',
-            render: (text, record) => record.User?.Role || 'N/A',
+            render: (text, record) => {
+                const role = record.User?.Role?.toLowerCase();
+                if (role === 'farmer') return <Tag color="green">PEMBERI KERJA</Tag>;
+                if (role === 'worker') return <Tag color="blue">PEKERJA</Tag>;
+                if (role === 'driver') return <Tag color="orange">DRIVER</Tag>;
+                if (role === 'mitra') return <Tag color="purple">MITRA</Tag>;
+                return record.User?.Role ? <Tag>{record.User.Role.toUpperCase()}</Tag> : 'N/A';
+            },
         },
         {
             title: 'Tipe Dokumen',

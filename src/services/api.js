@@ -2,13 +2,12 @@ import axios from "axios";
 
 // Buat instance Axios
 const api = axios.create({
-  baseURL: "http://localhost:8080/api/v1", // Sesuaikan dengan URL API Go Anda
+  baseURL: "http://localhost:8090/api/v1", // Sesuaikan dengan URL API Go Anda
 });
 
 // const api = axios.create({
 //   baseURL: "https://api.goagrolink.com/api/v1", // Sesuaikan dengan URL API Go Anda
 // });
-
 
 // [PENTING] Interceptor untuk Menambahkan Token ke Setiap Request
 // Ini adalah "penjaga" yang akan menyuntikkan token Anda secara otomatis
@@ -23,7 +22,7 @@ api.interceptors.request.use(
   },
   (error) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 // Fungsi spesifik untuk login
@@ -61,8 +60,15 @@ export const reviewVerification = (verificationId, payload) => {
   return api.post(`/admin/verifications/${verificationId}/review`, payload);
 };
 
-export const getAllTransactions = (page = 1, limit = 10) => {
-  return api.get(`/admin/transactions?page=${page}&limit=${limit}`);
+export const getAllTransactions = (page = 1, limit = 10, search = "", serviceType = "", paymentMethod = "") => {
+  const params = new URLSearchParams();
+  params.append("page", page);
+  params.append("limit", limit);
+  if (search) params.append("search", search);
+  if (serviceType) params.append("service_type", serviceType);
+  if (paymentMethod) params.append("payment_method", paymentMethod);
+
+  return api.get(`/admin/transactions?${params.toString()}`);
 };
 
 export const getAllUsers = (page = 1, limit = 10, search = "", role = "") => {
@@ -95,7 +101,7 @@ export const getProfitAnalytics = (startDate, endDate, sourceType = "") => {
   if (startDate) params.append("start_date", startDate);
   if (endDate) params.append("end_date", endDate);
   if (sourceType) params.append("source_type", sourceType);
-  
+
   return api.get(`/admin/reports/profit?${params.toString()}`);
 };
 

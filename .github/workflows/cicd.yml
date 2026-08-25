@@ -2,8 +2,8 @@ name: ci-cd-react-spa
 
 on:
   push:
-    branches: [ "main" ]   # ubah sesuai branch produksi
-    tags: [ "v*" ]         # rilis bertagar juga akan dipush
+    branches: ["main"]
+    tags: ["v*"]
   workflow_dispatch: {}
 
 env:
@@ -48,8 +48,6 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # build-args: |
-          #   VITE_API_URL=${{ secrets.VITE_API_URL }}
 
   deploy:
     needs: build-and-push
@@ -64,20 +62,13 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
-            cd /home/ubuntu/admin-agrolink
+            cd /root/goagrolink-project/frontend-admin
 
-            # Pastikan docker & compose tersedia (opsional)
             docker --version
             docker compose version
 
-            # Login DockerHub (opsional jika pull rate dibatasi)
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-            # Tarik image terbaru
             docker compose pull
-
-            # Restart tanpa downtime signifikan
             docker compose up -d --remove-orphans
-
-            # Bersihkan layer/lama
             docker image prune -f
