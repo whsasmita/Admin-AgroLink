@@ -46,9 +46,9 @@ const AdminLayout = () => {
     if (path.startsWith("/revenue")) {
       return "6";
     }
-    // if (path.startsWith("/profit")) {
-    //   return "7";
-    // }
+    if (path.startsWith("/profit")) {
+      return "7";
+    }
 
     return "1"; // Default ke Dashboard ('/')
   };
@@ -87,11 +87,11 @@ const AdminLayout = () => {
       icon: <BarChartOutlined />,
       label: <Link to="/revenue">Analisis Transaksi</Link>,
     },
-    // {
-    //   key: "7", // [ITEM BARU]
-    //   icon: <DollarCircleOutlined />,
-    //   label: <Link to="/profit">Keuntungan Platform</Link>,
-    // },
+    {
+      key: "7", // [ITEM BARU]
+      icon: <DollarCircleOutlined />,
+      label: <Link to="/profit">Keuntungan Platform</Link>,
+    },
   ];
 
   return (

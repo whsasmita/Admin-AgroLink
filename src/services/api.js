@@ -1,13 +1,13 @@
 import axios from "axios";
 
 // Buat instance Axios
-// const api = axios.create({
-// baseURL: "http://localhost:8090/api/v1", // Sesuaikan dengan URL API Go Anda
-// });
-
 const api = axios.create({
-  baseURL: "https://api.goagrolink.com/api/v1", // Sesuaikan dengan URL API Go Anda
+  baseURL: "http://localhost:8090/api/v1", // Sesuaikan dengan URL API Go Anda
 });
+
+// const api = axios.create({
+//   baseURL: "https://api.goagrolink.com/api/v1", // Sesuaikan dengan URL API Go Anda
+// });
 
 // [PENTING] Interceptor untuk Menambahkan Token ke Setiap Request
 // Ini adalah "penjaga" yang akan menyuntikkan token Anda secara otomatis
@@ -66,13 +66,21 @@ export const getAllTransactions = (
   search = "",
   serviceType = "",
   paymentMethod = "",
+  status = "",
+  sektor = "",
+  startDate = "",
+  endDate = "",
 ) => {
   const params = new URLSearchParams();
   params.append("page", page);
   params.append("limit", limit);
   if (search) params.append("search", search);
-  if (serviceType) params.append("service_type", serviceType);
+  if (serviceType) params.append("layanan", serviceType);
   if (paymentMethod) params.append("payment_method", paymentMethod);
+  if (status) params.append("status", status);
+  if (sektor) params.append("sektor", sektor);
+  if (startDate) params.append("start_date", startDate);
+  if (endDate) params.append("end_date", endDate);
 
   return api.get(`/admin/transactions?${params.toString()}`);
 };
@@ -96,8 +104,23 @@ export const getRevenueAnalytics = (startDate, endDate) => {
   return api.get(`/admin/revenue/analytics?${params.toString()}`);
 };
 
-export const exportTransactions = () => {
-  return api.get("/admin/transactions/export", {
+export const exportTransactions = (
+  search = "",
+  serviceType = "",
+  status = "",
+  sektor = "",
+  startDate = "",
+  endDate = "",
+) => {
+  const params = new URLSearchParams();
+  if (search) params.append("search", search);
+  if (serviceType) params.append("layanan", serviceType);
+  if (status) params.append("status", status);
+  if (sektor) params.append("sektor", sektor);
+  if (startDate) params.append("start_date", startDate);
+  if (endDate) params.append("end_date", endDate);
+
+  return api.get(`/admin/transactions/export?${params.toString()}`, {
     responseType: "blob", // PENTING!
   });
 };

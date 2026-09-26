@@ -28,9 +28,12 @@ import {
   CalendarOutlined,
   ShopOutlined,
   SolutionOutlined,
+  CheckCircleOutlined,
+  ArrowUpOutlined,
 } from "@ant-design/icons";
-import { Column, Area } from "@ant-design/plots";
-import { getProfitAnalytics, getAllTransactions } from "../services/api";
+import { Column, Area, Line } from "@ant-design/plots";
+import { getProfitAnalytics, getAllTransactions, getDashboardStats } from "../services/api";
+import { FaSeedling, FaRocket } from "react-icons/fa6";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 
@@ -47,96 +50,14 @@ const formatter = new Intl.NumberFormat("id-ID", {
   minimumFractionDigits: 0,
 });
 
-// Helper cek transaksi E-Commerce
 const isEcommerceTx = (record) => {
-  const type = String(record.transaction_type || record.service_type || "").toLowerCase();
-  const context = String(
-    record.context_info || record.context_title || record.description || record.product_name || ""
-  ).toLowerCase();
-
-  return (
-    type.includes("ecommerce") ||
-    type.includes("e-commerce") ||
-    type.includes("produk") ||
-    type.includes("product") ||
-    type === "produk" ||
-    context.includes("produk") ||
-    context.includes("hasil tani") ||
-    context.includes("sayur") ||
-    context.includes("buah") ||
-    context.includes("bibit") ||
-    context.includes("pupuk") ||
-    context.includes("ecommerce") ||
-    context.includes("e-commerce")
-  );
-};
-
-// Hitung komisi & fee
-const getTxProfitMetrics = (record) => {
-  const gross = record.amount_paid || record.amount || record.total_amount || 0;
-  const isEcom = isEcommerceTx(record);
-
-  let commRate = 0.08;
-  let sourceLabel = "Jasa";
-  let detailedService = "Pekerja / Tani Link";
-
-  const type = String(record.transaction_type || record.service_type || "").toLowerCase();
-  const context = String(
-    record.context_info || record.context_title || record.description || record.product_name || ""
-  ).toLowerCase();
-
-  if (type.includes("chatbot") || context.includes("chatbot") || context.includes("ai")) {
-    commRate = 1.0;
-    detailedService = "Chatbot Premium";
-  } else if (type.includes("kemitraan") || context.includes("kemitraan") || context.includes("b2b")) {
-    commRate = 0.15;
-    detailedService = "Kemitraan (B2B)";
-  } else if (type.includes("ekspedisi") || type.includes("delivery") || context.includes("driver")) {
-    commRate = 0.11;
-    detailedService = "Ekspedisi (Driver)";
-  } else if (isEcom) {
-    commRate = 0.1;
-    sourceLabel = "E-commerce";
-    detailedService = "E-Commerce Produk";
-  } else if (context.includes("peternakan") || context.includes("ternak")) {
-    commRate = 0.08;
-    detailedService = "Pekerja / Ternak Link";
-  } else if (context.includes("pertukangan") || context.includes("tukang") || context.includes("bangunan")) {
-    commRate = 0.08;
-    detailedService = "Pekerja / Tukang Link";
-  }
-
-  const grossProfit = record.platform_fee ?? record.net_profit ?? (gross * commRate);
-
-  // Estimasi Gateway Fee berdasarkan metode pembayaran
-  let gatewayFee = record.gateway_fee || 0;
-  if (!gatewayFee && gross > 0) {
-    const method = String(record.payment_method || "").toLowerCase();
-    if (method.includes("qris")) {
-      gatewayFee = Math.round(gross * 0.007); // QRIS 0.7%
-    } else if (method.includes("dana") || method.includes("gopay") || method.includes("shopee")) {
-      gatewayFee = Math.round(gross * 0.015); // E-Wallet 1.5%
-    } else {
-      gatewayFee = 2500; // Bank Transfer flat rate
-    }
-  }
-
-  const netProfit = Math.max(0, grossProfit - gatewayFee);
-
-  return {
-    gross,
-    commRate,
-    sourceLabel,
-    detailedService,
-    grossProfit,
-    gatewayFee,
-    netProfit,
-    isEcom,
-  };
+  const type = String(record.layanan || record.transaction_type || record.service_type || "").toLowerCase();
+  return type.includes("ecommerce") || type.includes("e-commerce") || type.includes("produk");
 };
 
 const ProfitPage = () => {
   const [data, setData] = useState(null);
+  const [dashboardStats, setDashboardStats] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -145,24 +66,27 @@ const ProfitPage = () => {
   const [dateRange, setDateRange] = useState(null);
   const [activePreset, setActivePreset] = useState("all");
   const [sourceType, setSourceType] = useState(""); // '', 'utama', atau 'ecommerce'
-  const [chartView, setChartView] = useState("column"); // 'column' | 'area'
+  const [chartView, setChartView] = useState("monthly"); // 'monthly' | 'daily' | 'cumulative'
 
-  const fetchProfit = async (start, end, source) => {
+  const fetchProfitData = async (start, end, source) => {
     setLoading(true);
     setError(null);
     try {
       const startStr = start ? dayjs(start).format("YYYY-MM-DD") : "";
       const endStr = end ? dayjs(end).format("YYYY-MM-DD") : "";
 
-      const [profitRes, txRes] = await Promise.allSettled([
+      const [profitRes, statsRes, txRes] = await Promise.allSettled([
         getProfitAnalytics(startStr, endStr, source),
-        getAllTransactions(1, 9999, "", ""),
+        getDashboardStats(),
+        getAllTransactions(1, 9999, "", "", "", "", "", startStr, endStr),
       ]);
 
       if (profitRes.status === "fulfilled") {
         setData(profitRes.value.data?.data || null);
       }
-
+      if (statsRes.status === "fulfilled") {
+        setDashboardStats(statsRes.value.data?.data || null);
+      }
       if (txRes.status === "fulfilled") {
         const raw = txRes.value.data?.data?.data || txRes.value.data?.data || [];
         setTransactions(Array.isArray(raw) ? raw : []);
@@ -176,7 +100,7 @@ const ProfitPage = () => {
   };
 
   useEffect(() => {
-    fetchProfit(null, null, "");
+    fetchProfitData(null, null, "");
   }, []);
 
   // Handler saat tanggal berubah
@@ -184,10 +108,10 @@ const ProfitPage = () => {
     setDateRange(dates);
     if (dates && dates[0] && dates[1]) {
       setActivePreset("custom");
-      fetchProfit(dates[0], dates[1], sourceType);
+      fetchProfitData(dates[0], dates[1], sourceType);
     } else {
       setActivePreset("all");
-      fetchProfit(null, null, sourceType);
+      fetchProfitData(null, null, sourceType);
     }
   };
 
@@ -204,20 +128,20 @@ const ProfitPage = () => {
       end = dayjs();
       start = dayjs().subtract(29, "day");
     } else if (presetKey === "sebelum" || presetKey === "fase1") {
-      // Periode Sebelum: 1 September 2025 s/d 31 Mei 2026 (236 Trx, Gross Rp 6.082.440, Net Rp 5.396.060)
+      // Periode Fase 1: 1 September 2025 s/d 31 Mei 2026
       start = dayjs("2025-09-01");
       end = dayjs("2026-05-31");
     } else if (presetKey === "sesudah" || presetKey === "fase2") {
-      // Periode Sesudah: 1 Juni 2026 s/d 20 Agustus 2026 (357 Trx, Gross Rp 21.472.800, Net Rp 20.473.376)
+      // Periode Fase 2: 1 Juni 2026 s/d 25 September 2026
       start = dayjs("2026-06-01");
-      end = dayjs("2026-08-20");
+      end = dayjs("2026-09-25");
     } else if (presetKey === "all") {
       start = null;
       end = null;
     }
 
     setDateRange(start && end ? [start, end] : null);
-    fetchProfit(start, end, sourceType);
+    fetchProfitData(start, end, sourceType);
   };
 
   // Handler saat source type berubah
@@ -225,127 +149,70 @@ const ProfitPage = () => {
     setSourceType(value);
     const start = dateRange && dateRange[0] ? dateRange[0] : null;
     const end = dateRange && dateRange[1] ? dateRange[1] : null;
-    fetchProfit(start, end, value);
+    fetchProfitData(start, end, value);
   };
 
-  // Kalkulasi metrik keuntungan riil
+  // Kalkulasi metrik keuntungan
   const profitMetrics = useMemo(() => {
-    const filteredTx = transactions.filter((t) => {
-      // Filter tanggal dengan YYYY-MM-DD
-      if (dateRange && dateRange[0] && dateRange[1]) {
-        if (t.transaction_date) {
-          const dStr = dayjs(t.transaction_date).format("YYYY-MM-DD");
-          const startStr = dayjs(dateRange[0]).format("YYYY-MM-DD");
-          const endStr = dayjs(dateRange[1]).format("YYYY-MM-DD");
-          if (dStr < startStr || dStr > endStr) {
-            return false;
-          }
-        }
-      }
-
-      // Filter source type
-      if (sourceType === "utama") {
-        if (isEcommerceTx(t)) return false;
-      } else if (sourceType === "ecommerce") {
-        if (!isEcommerceTx(t)) return false;
-      }
-
-      return true;
-    });
-
     let totalGrossVolume = 0;
     let totalGrossProfit = 0;
     let totalGatewayFee = 0;
     let totalNetProfit = 0;
-    let transactionCount = 0;
-
     let serviceGrossProfit = 0;
     let ecomGrossProfit = 0;
+    let transactionCount = 0;
+    let successCount = 0;
+    let failedCount = 0;
 
     const dailySummaryMap = {};
 
-    // Nilai resmi yang telah diverifikasi sesuai response API
-    if (activePreset === "sebelum") {
-      totalGrossProfit = 6082440;
-      totalGatewayFee = 686380;
-      totalNetProfit = 5396060;
-      totalGrossVolume = 66322000;
-      transactionCount = 236;
-    } else if (activePreset === "sesudah") {
-      totalGrossProfit = 21472800;
-      totalGatewayFee = 999424;
-      totalNetProfit = 20473376;
-      totalGrossVolume = 105194500;
-      transactionCount = 357;
-    } else if (activePreset === "all") {
-      totalGrossProfit = 27555240;
-      totalGatewayFee = 1685804;
-      totalNetProfit = 25869436;
-      totalGrossVolume = 171516500;
-      transactionCount = 593;
-    } else if (data?.total_summary) {
-      totalGrossProfit = data.total_summary.total_gross_profit || 0;
-      totalGatewayFee = data.total_summary.total_gateway_fee || 0;
-      totalNetProfit = data.total_summary.total_net_profit || 0;
-      totalGrossVolume = data.total_summary.total_gross_volume || totalGrossProfit * 6.2;
-      transactionCount = filteredTx.length || 593;
-    }
+    transactions.forEach((item) => {
+      const gross = item.nominal_transaksi ?? item.NominalTransaksi ?? item.amount_paid ?? 0;
+      const kotor = item.keuntungan_kotor ?? item.KeuntunganKotor ?? 0;
+      const fee = item.biaya_midtrans ?? item.BiayaMidtrans ?? 0;
+      const bersih = item.keuntungan_bersih ?? item.KeuntunganBersih ?? 0;
+      const isEcom = isEcommerceTx(item);
+      const isSuccess = String(item.status_transaksi || item.StatusTransaksi || item.status).toLowerCase().includes("sukses") || item.status === "paid";
 
-    if (filteredTx.length > 0) {
-      let calcGrossVol = 0;
-      let calcGrossProf = 0;
-      let calcGateFee = 0;
-      let calcNetProf = 0;
+      totalGrossVolume += gross;
+      totalGrossProfit += kotor;
+      totalGatewayFee += fee;
+      totalNetProfit += bersih;
+      transactionCount += 1;
 
-      filteredTx.forEach((item) => {
-        const m = getTxProfitMetrics(item);
-        calcGrossVol += m.gross;
-        calcGrossProf += m.grossProfit;
-        calcGateFee += m.gatewayFee;
-        calcNetProf += m.netProfit;
-
-        if (m.isEcom) {
-          ecomGrossProfit += m.grossProfit;
-        } else {
-          serviceGrossProfit += m.grossProfit;
-        }
-
-        const dateKey = dayjs(item.transaction_date || dayjs()).format("YYYY-MM-DD");
-        if (!dailySummaryMap[dateKey]) {
-          dailySummaryMap[dateKey] = {
-            date: dateKey,
-            total_gross_volume: 0,
-            total_gross_profit: 0,
-            total_gateway_fee: 0,
-            total_net_profit: 0,
-            source_type: m.sourceLabel,
-            count: 0,
-          };
-        }
-        dailySummaryMap[dateKey].total_gross_volume += m.gross;
-        dailySummaryMap[dateKey].total_gross_profit += m.grossProfit;
-        dailySummaryMap[dateKey].total_gateway_fee += m.gatewayFee;
-        dailySummaryMap[dateKey].total_net_profit += m.netProfit;
-        dailySummaryMap[dateKey].count += 1;
-      });
-
-      if (!activePreset && !data?.total_summary) {
-        totalGrossVolume = calcGrossVol;
-        totalGrossProfit = calcGrossProf;
-        totalGatewayFee = calcGateFee;
-        totalNetProfit = calcNetProf;
-        transactionCount = filteredTx.length;
+      if (isSuccess) {
+        successCount += 1;
+      } else {
+        failedCount += 1;
       }
-    }
 
-    // Hitung proporsi Jasa vs E-Commerce
-    if (ecomGrossProfit === 0 && serviceGrossProfit > 0) {
-      serviceGrossProfit = Math.round(totalGrossProfit * 0.93);
-      ecomGrossProfit = totalGrossProfit - serviceGrossProfit;
-    }
+      if (isEcom) {
+        ecomGrossProfit += kotor;
+      } else {
+        serviceGrossProfit += kotor;
+      }
 
-    const servicePct = totalGrossProfit > 0 ? ((serviceGrossProfit / totalGrossProfit) * 100).toFixed(1) : "93.0";
-    const ecomPct = totalGrossProfit > 0 ? ((ecomGrossProfit / totalGrossProfit) * 100).toFixed(1) : "7.0";
+      const dateKey = dayjs(item.transaction_date || item.Tanggal || dayjs()).format("YYYY-MM-DD");
+      if (!dailySummaryMap[dateKey]) {
+        dailySummaryMap[dateKey] = {
+          date: dateKey,
+          total_gross_volume: 0,
+          total_gross_profit: 0,
+          total_gateway_fee: 0,
+          total_net_profit: 0,
+          source_type: isEcom ? "E-Commerce" : "Jasa Platform",
+          count: 0,
+        };
+      }
+      dailySummaryMap[dateKey].total_gross_volume += gross;
+      dailySummaryMap[dateKey].total_gross_profit += kotor;
+      dailySummaryMap[dateKey].total_gateway_fee += fee;
+      dailySummaryMap[dateKey].total_net_profit += bersih;
+      dailySummaryMap[dateKey].count += 1;
+    });
+
+    const servicePct = totalGrossProfit > 0 ? ((serviceGrossProfit / totalGrossProfit) * 100).toFixed(1) : "0";
+    const ecomPct = totalGrossProfit > 0 ? ((ecomGrossProfit / totalGrossProfit) * 100).toFixed(1) : "0";
 
     const dailySummaryList = Object.values(dailySummaryMap).sort((a, b) => (a.date > b.date ? 1 : -1));
 
@@ -359,12 +226,30 @@ const ProfitPage = () => {
       servicePct,
       ecomPct,
       dailySummaryList,
-      count: transactionCount || (filteredTx.length || 593),
+      count: transactionCount,
+      successCount,
+      failedCount,
     };
-  }, [transactions, data, dateRange, sourceType, activePreset]);
+  }, [transactions, activePreset]);
 
-  // Data terformat untuk Chart
-  const chartData = useMemo(() => {
+  // Data Bulanan dari dashboardStats
+  const monthlyTrendData = useMemo(() => {
+    const list = dashboardStats?.monthly_profit_trend || [];
+    return list.map((item) => ({
+      month: item.month,
+      monthLabel: item.month_label,
+      netProfit: item.net_profit,
+      grossProfit: item.gross_profit,
+      gatewayFee: item.gateway_fee,
+      cumulativeNetProfit: item.cumulative_net_profit,
+      totalCount: item.total_count,
+      successCount: item.success_count,
+      failedCount: item.failed_count,
+    }));
+  }, [dashboardStats]);
+
+  // Data Harian untuk Chart
+  const dailyChartData = useMemo(() => {
     return profitMetrics.dailySummaryList.map((item) => ({
       date: dayjs(item.date).format("DD MMM"),
       fullDate: dayjs(item.date).format("DD MMMM YYYY"),
@@ -374,13 +259,13 @@ const ProfitPage = () => {
     }));
   }, [profitMetrics]);
 
-  // Konfigurasi Chart Column
-  const columnConfig = {
-    data: chartData,
-    xField: "date",
+  // Konfigurasi Chart Bulanan
+  const monthlyColumnConfig = {
+    data: monthlyTrendData,
+    xField: "monthLabel",
     yField: "netProfit",
     style: {
-      fill: "#52c41a",
+      fill: "#10b981",
       radiusTopLeft: 4,
       radiusTopRight: 4,
     },
@@ -388,7 +273,7 @@ const ProfitPage = () => {
       y: { min: 0, nice: true },
     },
     axis: {
-      x: { title: { text: "Tanggal" }, labelAutoHide: true, labelAutoRotate: false },
+      x: { title: { text: "Bulan Transaksi (Sep 2025 – Sep 2026)" }, labelAutoRotate: false },
       y: {
         title: { text: "Keuntungan Bersih (Rp)" },
         labelFormatter: (val) => `Rp ${(val / 1000).toLocaleString("id-ID")}k`,
@@ -397,31 +282,63 @@ const ProfitPage = () => {
     tooltip: {
       items: [
         {
-          name: "Net Profit",
+          name: "Laba Bersih",
           channel: "y",
           valueFormatter: (v) => formatter.format(v),
         },
       ],
     },
-    height: 300,
+    height: 320,
   };
 
-  // Konfigurasi Chart Area
-  const areaConfig = {
-    data: chartData,
-    xField: "date",
-    yField: "netProfit",
+  // Konfigurasi Chart Kumulatif
+  const cumulativeAreaConfig = {
+    data: monthlyTrendData,
+    xField: "monthLabel",
+    yField: "cumulativeNetProfit",
     shapeField: "smooth",
     style: {
-      fill: "linear-gradient(-90deg, rgba(82, 196, 26, 0.35) 0%, rgba(82, 196, 26, 0.02) 100%)",
+      fill: "linear-gradient(-90deg, rgba(16, 185, 129, 0.45) 0%, rgba(16, 185, 129, 0.05) 100%)",
     },
-    line: { style: { stroke: "#389e0d", lineWidth: 2.5 } },
-    point: { shapeField: "circle", sizeField: 3.5 },
+    line: { style: { stroke: "#059669", lineWidth: 3 } },
+    point: { shapeField: "circle", sizeField: 4.5 },
     scale: {
       y: { min: 0, nice: true },
     },
     axis: {
-      x: { title: { text: "Tanggal" }, labelAutoHide: true, labelAutoRotate: false },
+      x: { title: { text: "Bulan" } },
+      y: {
+        title: { text: "Keuntungan Bersih Kumulatif (Rp)" },
+        labelFormatter: (val) => `Rp ${(val / 1000000).toFixed(2)}jt`,
+      },
+    },
+    tooltip: {
+      items: [
+        {
+          name: "Total Kumulatif",
+          channel: "y",
+          valueFormatter: (v) => formatter.format(v),
+        },
+      ],
+    },
+    height: 320,
+  };
+
+  // Konfigurasi Chart Harian
+  const dailyColumnConfig = {
+    data: dailyChartData,
+    xField: "date",
+    yField: "netProfit",
+    style: {
+      fill: "#3b82f6",
+      radiusTopLeft: 4,
+      radiusTopRight: 4,
+    },
+    scale: {
+      y: { min: 0, nice: true },
+    },
+    axis: {
+      x: { title: { text: "Tanggal" }, labelAutoHide: true },
       y: {
         title: { text: "Keuntungan Bersih (Rp)" },
         labelFormatter: (val) => `Rp ${(val / 1000).toLocaleString("id-ID")}k`,
@@ -430,73 +347,14 @@ const ProfitPage = () => {
     tooltip: {
       items: [
         {
-          name: "Net Profit",
+          name: "Net Profit Harian",
           channel: "y",
           valueFormatter: (v) => formatter.format(v),
         },
       ],
     },
-    height: 300,
+    height: 320,
   };
-
-  // Konfigurasi Kolom Tabel Detail Harian
-  const columns = [
-    {
-      title: "Tanggal",
-      dataIndex: "date",
-      key: "date",
-      render: (text) => (
-        <div>
-          <Text strong>{dayjs(text).format("DD MMM YYYY")}</Text>
-          <Text type="secondary" style={{ display: "block", fontSize: 11 }}>
-            {dayjs(text).format("dddd")}
-          </Text>
-        </div>
-      ),
-    },
-    {
-      title: "Tipe Sumber",
-      dataIndex: "source_type",
-      key: "source_type",
-      render: (text) => (
-        <Tag color={text === "E-commerce" ? "gold" : "blue"} style={{ fontWeight: 600 }}>
-          {text === "E-commerce" ? "E-Commerce (10%)" : "Jasa Platform"}
-        </Tag>
-      ),
-    },
-    {
-      title: "Total Omset (Gross)",
-      dataIndex: "total_gross_volume",
-      key: "total_gross_volume",
-      align: "right",
-      render: (val) => <Text>{formatter.format(val)}</Text>,
-    },
-    {
-      title: "Komisi Platform (Gross Profit)",
-      dataIndex: "total_gross_profit",
-      key: "total_gross_profit",
-      align: "right",
-      render: (val) => <Text strong style={{ color: "#1677ff" }}>{formatter.format(val)}</Text>,
-    },
-    {
-      title: "Biaya Gateway (Midtrans)",
-      dataIndex: "total_gateway_fee",
-      key: "total_gateway_fee",
-      align: "right",
-      render: (val) => <Text type="secondary" style={{ color: "#fa8c16" }}>-{formatter.format(val)}</Text>,
-    },
-    {
-      title: "Keuntungan Bersih (Net Profit)",
-      dataIndex: "total_net_profit",
-      key: "total_net_profit",
-      align: "right",
-      render: (val) => (
-        <span style={{ fontWeight: 700, color: "#389e0d", fontSize: 14 }}>
-          {formatter.format(val)}
-        </span>
-      ),
-    },
-  ];
 
   return (
     <div style={{ paddingBottom: 24 }}>
@@ -518,10 +376,12 @@ const ProfitPage = () => {
       >
         <div>
           <Title level={3} style={{ margin: 0 }}>
-            Analisis Keuntungan Platform
+            Laporan Keuntungan Platform AgroLink
           </Title>
           <Text type="secondary">
-            Pantau margin komisi bersih (Net Profit), evaluasi beban gateway fee (Midtrans), dan analisa profitabilitas per periode.
+            {profitMetrics.count > 0 || dashboardStats?.financial_summary
+              ? `Evaluasi keuntungan bersih (Net Profit ${formatter.format(dashboardStats?.financial_summary?.total_net_profit ?? profitMetrics.totalNetProfit)}), margin komisi, dan beban gateway fee Midtrans per bulan.`
+              : "Evaluasi keuntungan bersih platform, margin komisi, dan beban gateway fee Midtrans."}
           </Text>
         </div>
 
@@ -532,7 +392,7 @@ const ProfitPage = () => {
               onClick={() => {
                 const start = dateRange && dateRange[0] ? dateRange[0] : null;
                 const end = dateRange && dateRange[1] ? dateRange[1] : null;
-                fetchProfit(start, end, sourceType);
+                fetchProfitData(start, end, sourceType);
               }}
               disabled={loading}
             >
@@ -542,7 +402,7 @@ const ProfitPage = () => {
         </Space>
       </div>
 
-      {/* 2. Filter Periode & Tipe Sumber (Periode Sebelum & Sesudah) */}
+      {/* 2. Filter Periode Cepat */}
       <Card className="modern-card" style={{ marginBottom: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -556,21 +416,23 @@ const ProfitPage = () => {
                 onClick={() => handlePresetSelect("all")}
                 size="middle"
               >
-                Semua Waktu (593 Trx)
+                Semua Waktu {profitMetrics.count > 0 ? `(${profitMetrics.count} Trx)` : ""}
               </Button>
               <Button
                 type={activePreset === "sebelum" ? "primary" : "default"}
                 onClick={() => handlePresetSelect("sebelum")}
                 size="middle"
+                icon={<FaSeedling style={{ color: activePreset === "sebelum" ? "#fff" : "#10b981" }} />}
               >
-                🌱 Periode Sebelum (1 Sep 2025 – 31 Mei 2026)
+                Fase 1 (1 Sep 2025 – 31 Mei 2026)
               </Button>
               <Button
                 type={activePreset === "sesudah" ? "primary" : "default"}
                 onClick={() => handlePresetSelect("sesudah")}
                 size="middle"
+                icon={<FaRocket style={{ color: activePreset === "sesudah" ? "#fff" : "#8b5cf6" }} />}
               >
-                🚀 Periode Sesudah (1 Jun 2026 – 20 Agu 2026)
+                Fase 2 (1 Jun 2026 – 25 Sep 2026)
               </Button>
               <Button
                 type={activePreset === "30d" ? "primary" : "default"}
@@ -597,8 +459,8 @@ const ProfitPage = () => {
               style={{ width: 160 }}
             >
               <Option value="">Semua Sumber</Option>
-              <Option value="utama">🛠️ Jasa (Utama)</Option>
-              <Option value="ecommerce">🛒 E-Commerce</Option>
+              <Option value="utama">Jasa (Utama)</Option>
+              <Option value="ecommerce">E-Commerce</Option>
             </Select>
 
             <span style={{ color: "#666", marginLeft: 8 }}>Rentang Kustom:</span>
@@ -626,9 +488,30 @@ const ProfitPage = () => {
       {/* 3. Kartu Statistik Total Keuntungan Platform */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} md={8}>
+          <Card className="modern-card" style={{ background: "#f6ffed", border: "1px solid #b7eb8f", height: "100%" }}>
+            <Statistic
+              title={
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ color: "#237804", fontWeight: 700 }}>Total Keuntungan Bersih (Kumulatif)</span>
+                  <Tag color="green" style={{ fontSize: 11, margin: 0 }}>
+                    {profitMetrics.count} Transaksi
+                  </Tag>
+                </div>
+              }
+              value={formatter.format(profitMetrics.totalNetProfit)}
+              prefix={<DollarCircleOutlined style={{ color: "#389e0d" }} />}
+              valueStyle={{ color: "#237804", fontWeight: 700, fontSize: 24 }}
+            />
+            <div style={{ marginTop: 8, fontSize: 12, color: "#52c41a" }}>
+              Fase 1: <b>{formatter.format(dashboardStats?.financial_summary?.phase1_net_profit ?? 0)}</b> | Fase 2: <b>{formatter.format(dashboardStats?.financial_summary?.phase2_net_profit ?? 0)}</b>
+            </div>
+          </Card>
+        </Col>
+
+        <Col xs={24} md={8}>
           <Card className="modern-card" style={{ borderLeft: "4px solid #1677ff", height: "100%" }}>
             <Statistic
-              title="Total Komisi Kotor (Gross Profit)"
+              title="Komisi Kotor Platform (Gross Profit)"
               value={formatter.format(profitMetrics.totalGrossProfit)}
               prefix={<LineChartOutlined style={{ color: "#1677ff" }} />}
               valueStyle={{ color: "#1677ff", fontWeight: 700, fontSize: 22 }}
@@ -648,28 +531,7 @@ const ProfitPage = () => {
               valueStyle={{ color: "#fa8c16", fontWeight: 700, fontSize: 22 }}
             />
             <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>
-              Biaya transfer bank & settlement gateway
-            </div>
-          </Card>
-        </Col>
-
-        <Col xs={24} md={8}>
-          <Card className="modern-card" style={{ background: "#f6ffed", border: "1px solid #b7eb8f", height: "100%" }}>
-            <Statistic
-              title={
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ color: "#237804", fontWeight: 600 }}>Keuntungan Bersih (Net Profit)</span>
-                  <Tag color="green" style={{ fontSize: 11, margin: 0 }}>
-                    {profitMetrics.count} Transaksi
-                  </Tag>
-                </div>
-              }
-              value={formatter.format(profitMetrics.totalNetProfit)}
-              prefix={<DollarCircleOutlined style={{ color: "#389e0d" }} />}
-              valueStyle={{ color: "#237804", fontWeight: 700, fontSize: 24 }}
-            />
-            <div style={{ marginTop: 8, fontSize: 12, color: "#52c41a" }}>
-              Laba bersih setelah dikurangi Midtrans fee
+              Biaya pemrosesan pembayaran & QRIS/E-Wallet/Bank
             </div>
           </Card>
         </Col>
@@ -681,7 +543,7 @@ const ProfitPage = () => {
           <Card className="modern-card">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <Statistic
-                title="Profit Dari Jasa Platform"
+                title="Profit Dari Layanan Jasa Platform"
                 value={formatter.format(profitMetrics.serviceGrossProfit)}
                 prefix={<SolutionOutlined style={{ color: "#1677ff" }} />}
                 valueStyle={{ color: "#1677ff", fontWeight: 700 }}
@@ -712,22 +574,24 @@ const ProfitPage = () => {
             </div>
             <Progress percent={parseFloat(profitMetrics.ecomPct)} strokeColor="#faad14" size="small" style={{ marginTop: 8 }} />
             <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: "block" }}>
-              Komisi 10% dari transaksi jual beli produk hasil tani
+              Komisi 10% dari transaksi jual beli komoditas hasil tani
             </Text>
           </Card>
         </Col>
       </Row>
 
-      {/* 5. Grafik Tren Profit Harian */}
+      {/* 5. Grafik Tren Profit Platform (Bulanan & Kumulatif Sep 2025 – Sep 2026) */}
       <Card
         className="modern-card"
         title={
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <LineChartOutlined style={{ color: "#1677ff", fontSize: 18 }} />
             <div>
-              <span style={{ fontWeight: 600, fontSize: 16 }}>Tren Keuntungan Bersih Harian</span>
+              <span style={{ fontWeight: 600, fontSize: 16 }}>
+                Grafik Keuntungan Bersih Platform (September 2025 – September 2026)
+              </span>
               <span style={{ display: "block", fontSize: 12, color: "#6b7280" }}>
-                Fluktuasi laba bersih harian setelah potongan gateway fee
+                Perjalanan keuntungan bersih bulanan dan pertumbuhan kumulatif platform
               </span>
             </div>
           </div>
@@ -737,8 +601,9 @@ const ProfitPage = () => {
             value={chartView}
             onChange={setChartView}
             options={[
-              { label: "📊 Grafik Batang", value: "column", icon: <BarChartOutlined /> },
-              { label: "📈 Grafik Area", value: "area", icon: <RiseOutlined /> },
+              { label: "Bulanan", value: "monthly", icon: <BarChartOutlined /> },
+              { label: "Laba Kumulatif", value: "cumulative", icon: <RiseOutlined /> },
+              { label: "Harian", value: "daily", icon: <LineChartOutlined /> },
             ]}
           />
         }
@@ -749,9 +614,17 @@ const ProfitPage = () => {
             <Spin size="large" />
             <div style={{ marginTop: 12, color: "#6b7280" }}>Memuat tren keuntungan...</div>
           </div>
-        ) : chartData.length > 0 ? (
-          <div style={{ width: "100%", height: 300 }}>
-            {chartView === "column" ? <Column {...columnConfig} /> : <Area {...areaConfig} />}
+        ) : chartView === "monthly" ? (
+          <div style={{ width: "100%", height: 320 }}>
+            <Column {...monthlyColumnConfig} />
+          </div>
+        ) : chartView === "cumulative" ? (
+          <div style={{ width: "100%", height: 320 }}>
+            <Area {...cumulativeAreaConfig} />
+          </div>
+        ) : dailyChartData.length > 0 ? (
+          <div style={{ width: "100%", height: 320 }}>
+            <Column {...dailyColumnConfig} />
           </div>
         ) : (
           <Empty
@@ -762,20 +635,127 @@ const ProfitPage = () => {
         )}
       </Card>
 
-      {/* 6. Tabel Detail Profit Harian */}
-      <Card className="modern-card" title="Rincian Profit Harian">
+      {/* 6. Tabel Rincian Laba Bulanan Sep 2025 – Sep 2026 */}
+      <Card
+        className="modern-card"
+        title="Tabel Rekapitulasi Keuntungan Bersih Bulanan (Sep 2025 – Sep 2026)"
+      >
         <Table
-          dataSource={profitMetrics.dailySummaryList}
-          columns={columns}
-          rowKey={(record) => record.date}
-          loading={loading}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: true,
-            pageSizeOptions: ["10", "20", "50"],
-            showTotal: (total) => `Total ${total} data harian tercatat`,
+          dataSource={monthlyTrendData}
+          rowKey="month"
+          pagination={false}
+          bordered
+          size="small"
+          scroll={{ x: "max-content" }}
+          columns={[
+            {
+              title: "Periode Bulan",
+              dataIndex: "monthLabel",
+              key: "monthLabel",
+              render: (label, record) => (
+                <div>
+                  <Text strong>{label}</Text>
+                  <Text type="secondary" style={{ display: "block", fontSize: 11 }}>
+                    {record.month}
+                  </Text>
+                </div>
+              ),
+            },
+            {
+              title: "Sukses",
+              dataIndex: "successCount",
+              key: "successCount",
+              align: "center",
+              render: (val) => <Tag color="success">{val} trx</Tag>,
+            },
+            {
+              title: "Gagal",
+              dataIndex: "failedCount",
+              key: "failedCount",
+              align: "center",
+              render: (val) => <Tag color={val > 0 ? "error" : "default"}>{val} trx</Tag>,
+            },
+            {
+              title: "Total Transaksi",
+              dataIndex: "totalCount",
+              key: "totalCount",
+              align: "center",
+              render: (val) => <b>{val}</b>,
+            },
+            {
+              title: "Keuntungan Kotor",
+              dataIndex: "grossProfit",
+              key: "grossProfit",
+              align: "right",
+              render: (val) => formatter.format(val),
+            },
+            {
+              title: "Biaya Midtrans",
+              dataIndex: "gatewayFee",
+              key: "gatewayFee",
+              align: "right",
+              render: (val) => (
+                <span style={{ color: "#fa8c16" }}>-{formatter.format(val)}</span>
+              ),
+            },
+            {
+              title: "Keuntungan Bersih (Net)",
+              dataIndex: "netProfit",
+              key: "netProfit",
+              align: "right",
+              render: (val) => (
+                <span style={{ fontWeight: 700, color: "#389e0d" }}>
+                  +{formatter.format(val)}
+                </span>
+              ),
+            },
+            {
+              title: "Laba Bersih Kumulatif",
+              dataIndex: "cumulativeNetProfit",
+              key: "cumulativeNetProfit",
+              align: "right",
+              render: (val) => (
+                <b style={{ color: "#1677ff", fontSize: 13 }}>
+                  {formatter.format(val)}
+                </b>
+              ),
+            },
+          ]}
+          summary={() => {
+            const totalSuccess = monthlyTrendData.reduce((acc, curr) => acc + (curr.successCount || 0), 0);
+            const totalFailed = monthlyTrendData.reduce((acc, curr) => acc + (curr.failedCount || 0), 0);
+            const totalTrx = monthlyTrendData.reduce((acc, curr) => acc + (curr.totalCount || 0), 0);
+            const totalGross = monthlyTrendData.reduce((acc, curr) => acc + (curr.grossProfit || 0), 0);
+            const totalFee = monthlyTrendData.reduce((acc, curr) => acc + (curr.gatewayFee || 0), 0);
+            const totalNet = monthlyTrendData.reduce((acc, curr) => acc + (curr.netProfit || 0), 0);
+
+            return (
+              <Table.Summary fixed>
+                <Table.Summary.Row style={{ backgroundColor: "#fafafa", fontWeight: 700 }}>
+                  <Table.Summary.Cell index={0}>TOTAL ({monthlyTrendData.length} BULAN)</Table.Summary.Cell>
+                  <Table.Summary.Cell index={1} align="center">
+                    <Tag color="success" style={{ fontWeight: 700 }}>{totalSuccess}</Tag>
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={2} align="center">
+                    <Tag color="error" style={{ fontWeight: 700 }}>{totalFailed}</Tag>
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={3} align="center">{totalTrx}</Table.Summary.Cell>
+                  <Table.Summary.Cell index={4} align="right">
+                    {formatter.format(totalGross)}
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={5} align="right" style={{ color: "#fa8c16" }}>
+                    -{formatter.format(totalFee)}
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={6} align="right" style={{ color: "#389e0d" }}>
+                    +{formatter.format(totalNet)}
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={7} align="right" style={{ color: "#1677ff", fontSize: 14 }}>
+                    {formatter.format(totalNet)}
+                  </Table.Summary.Cell>
+                </Table.Summary.Row>
+              </Table.Summary>
+            );
           }}
-          scroll={{ x: 800 }}
         />
       </Card>
     </div>

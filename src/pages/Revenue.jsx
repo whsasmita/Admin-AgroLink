@@ -30,7 +30,8 @@ import {
   CheckCircleOutlined,
 } from "@ant-design/icons";
 import { Column, Area } from "@ant-design/plots";
-import { getRevenueAnalytics, getAllTransactions, exportTransactions } from "../services/api";
+import { getRevenueAnalytics, getAllTransactions, exportTransactions, getDashboardStats } from "../services/api";
+import { FaSeedling, FaRocket } from "react-icons/fa6";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 
@@ -100,6 +101,7 @@ const computePlatformCommission = (record) => {
 
 const RevenuePage = () => {
   const [data, setData] = useState(null);
+  const [dashboardStats, setDashboardStats] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -120,9 +122,10 @@ const RevenuePage = () => {
       const startStr = start ? dayjs(start).format("YYYY-MM-DD") : "";
       const endStr = end ? dayjs(end).format("YYYY-MM-DD") : "";
 
-      const [revRes, txRes] = await Promise.allSettled([
+      const [revRes, txRes, statsRes] = await Promise.allSettled([
         getRevenueAnalytics(startStr, endStr),
         getAllTransactions(1, 9999, "", ""),
+        getDashboardStats(),
       ]);
 
       if (revRes.status === "fulfilled") {
@@ -132,6 +135,10 @@ const RevenuePage = () => {
       if (txRes.status === "fulfilled") {
         const rawItems = txRes.value.data?.data?.data || txRes.value.data?.data || [];
         setTransactions(Array.isArray(rawItems) ? rawItems : []);
+      }
+
+      if (statsRes.status === "fulfilled") {
+        setDashboardStats(statsRes.value.data?.data || null);
       }
     } catch (err) {
       console.error("Gagal memuat data pendapatan:", err);
@@ -171,13 +178,13 @@ const RevenuePage = () => {
       end = dayjs();
       start = dayjs().subtract(29, "day");
     } else if (presetKey === "sebelum" || presetKey === "fase1") {
-      // Periode Sebelum: 1 September 2025 s/d 31 Mei 2026 (236 Transaksi, Keuntungan Kotor Rp 6.082.440, Bersih Rp 5.396.060)
+      // Periode Fase 1: 1 September 2025 s/d 31 Mei 2026
       start = dayjs("2025-09-01");
       end = dayjs("2026-05-31");
     } else if (presetKey === "sesudah" || presetKey === "fase2") {
-      // Periode Sesudah: 1 Juni 2026 s/d 20 Agustus 2026 (357 Transaksi, Keuntungan Kotor Rp 21.472.800, Bersih Rp 20.473.376)
+      // Periode Fase 2: 1 Juni 2026 s/d 25 September 2026
       start = dayjs("2026-06-01");
-      end = dayjs("2026-08-20");
+      end = dayjs("2026-09-25");
     } else if (presetKey === "all") {
       start = null;
       end = null;
@@ -215,8 +222,9 @@ const RevenuePage = () => {
     // Filter transaksi berdasarkan rentang tanggal aktif menggunakan format YYYY-MM-DD
     const filteredTx = transactions.filter((t) => {
       if (!dateRange || !dateRange[0] || !dateRange[1]) return true;
-      if (!t.transaction_date) return true;
-      const dStr = dayjs(t.transaction_date).format("YYYY-MM-DD");
+      const tDate = t.transaction_date || t.Tanggal || t.Timestamp;
+      if (!tDate) return true;
+      const dStr = dayjs(tDate).format("YYYY-MM-DD");
       const startStr = dayjs(dateRange[0]).format("YYYY-MM-DD");
       const endStr = dayjs(dateRange[1]).format("YYYY-MM-DD");
       return dStr >= startStr && dStr <= endStr;
@@ -230,43 +238,57 @@ const RevenuePage = () => {
     let productRevenue = 0;
     let transactionCount = 0;
 
-    // Nilai resmi yang telah diverifikasi sesuai response API
-    if (activePreset === "sebelum") {
-      totalRevenue = 6082440; // Keuntungan Kotor Periode Sebelum
-      netProfit = 5396060;    // Keuntungan Bersih Periode Sebelum
-      gatewayFee = 686380;    // Midtrans Fee Periode Sebelum
-      gmvAmount = 66322000;   // Total GMV Periode Sebelum
-      transactionCount = 236;
-    } else if (activePreset === "sesudah") {
-      totalRevenue = 21472800; // Keuntungan Kotor Periode Sesudah
-      netProfit = 20473376;    // Keuntungan Bersih Periode Sesudah
-      gatewayFee = 999424;     // Midtrans Fee Periode Sesudah
-      gmvAmount = 105194500;   // Total GMV Periode Sesudah
-      transactionCount = 357;
-    } else if (activePreset === "all") {
-      totalRevenue = 27555240; // Total Keuntungan Kotor Keseluruhan
-      netProfit = 25869436;    // Total Keuntungan Bersih Keseluruhan
-      gatewayFee = 1685804;    // Total Midtrans Fee Keseluruhan
-      gmvAmount = 171516500;   // Total GMV Keseluruhan
-      transactionCount = 593;
+    if (filteredTx.length > 0) {
+      let sumComm = 0;
+      let sumGross = 0;
+      let sumFee = 0;
+      let sumNet = 0;
+      let calcServ = 0;
+      let calcProd = 0;
+
+      filteredTx.forEach((item) => {
+        const gross = item.nominal_transaksi ?? item.NominalTransaksi ?? item.amount_paid ?? item.amount ?? item.total_amount ?? 0;
+        const kotor = item.keuntungan_kotor ?? item.KeuntunganKotor ?? computePlatformCommission(item);
+        const fee = item.biaya_midtrans ?? item.BiayaMidtrans ?? 0;
+        const bersih = item.keuntungan_bersih ?? item.KeuntunganBersih ?? (kotor - fee);
+        const isEcom = isEcommerceTransaction(item);
+
+        sumGross += gross;
+        sumComm += kotor;
+        sumFee += fee;
+        sumNet += bersih;
+
+        if (isEcom) {
+          calcProd += kotor;
+        } else {
+          calcServ += kotor;
+        }
+      });
+
+      totalRevenue = sumComm;
+      gmvAmount = sumGross;
+      gatewayFee = sumFee;
+      netProfit = sumNet;
+      transactionCount = filteredTx.length;
+      serviceRevenue = calcServ;
+      productRevenue = calcProd;
+    } else if (activePreset === "all" && dashboardStats?.financial_summary) {
+      const fin = dashboardStats.financial_summary;
+      totalRevenue = fin.total_gross_profit;
+      netProfit = fin.total_net_profit;
+      gatewayFee = fin.total_gateway_fee;
+      gmvAmount = fin.total_gmv;
+      transactionCount = fin.total_transactions;
+      serviceRevenue = Math.round(totalRevenue * 0.916);
+      productRevenue = totalRevenue - serviceRevenue;
     } else if (data && data.total_revenue != null && data.total_revenue > 0) {
       totalRevenue = data.total_revenue;
       netProfit = data.net_profit || totalRevenue * 0.94;
       gatewayFee = totalRevenue - netProfit;
       gmvAmount = totalRevenue * 6.2;
-      transactionCount = filteredTx.length || 593;
-    } else if (filteredTx.length > 0) {
-      let sumComm = 0;
-      let sumGross = 0;
-      filteredTx.forEach((item) => {
-        sumComm += computePlatformCommission(item);
-        sumGross += (item.amount_paid || item.amount || item.total_amount || 0);
-      });
-      totalRevenue = sumComm;
-      gmvAmount = sumGross;
-      netProfit = totalRevenue * 0.94;
-      gatewayFee = totalRevenue - netProfit;
       transactionCount = filteredTx.length;
+      serviceRevenue = data?.revenue_by_service || Math.round(totalRevenue * 0.93);
+      productRevenue = data?.revenue_by_product || (totalRevenue - serviceRevenue);
     }
 
     // Hitung proporsi Jasa vs E-Commerce
@@ -442,7 +464,9 @@ const RevenuePage = () => {
             Analisis Pendapatan Platform
           </Title>
           <Text type="secondary">
-            Pantau arus komisi riil platform (Gross Profit), pembagian pendapatan Jasa vs E-Commerce, dan analisa tren harian.
+            {metrics.total > 0
+              ? `Pantau arus komisi platform (${formatter.format(metrics.total)}), laba bersih ${formatter.format(metrics.netProfit)}, pembagian Jasa vs E-Commerce, dan analisa tren harian.`
+              : "Pantau arus komisi platform, pembagian pendapatan Jasa vs E-Commerce, dan analisa tren harian."}
           </Text>
         </div>
 
@@ -489,21 +513,23 @@ const RevenuePage = () => {
                 onClick={() => handlePresetSelect("all")}
                 size="middle"
               >
-                Semua Waktu (593 Trx)
+                Semua Waktu {metrics.transactionCount > 0 && activePreset === "all" ? `(${metrics.transactionCount} Trx)` : ""}
               </Button>
               <Button
                 type={activePreset === "sebelum" ? "primary" : "default"}
                 onClick={() => handlePresetSelect("sebelum")}
                 size="middle"
+                icon={<FaSeedling style={{ color: activePreset === "sebelum" ? "#fff" : "#10b981" }} />}
               >
-                🌱 Periode Sebelum (1 Sep 2025 – 31 Mei 2026)
+                Fase 1 (1 Sep 2025 – 31 Mei 2026)
               </Button>
               <Button
                 type={activePreset === "sesudah" ? "primary" : "default"}
                 onClick={() => handlePresetSelect("sesudah")}
                 size="middle"
+                icon={<FaRocket style={{ color: activePreset === "sesudah" ? "#fff" : "#8b5cf6" }} />}
               >
-                🚀 Periode Sesudah (1 Jun 2026 – 20 Agu 2026)
+                Fase 2 (1 Jun 2026 – 25 Sep 2026)
               </Button>
               <Button
                 type={activePreset === "30d" ? "primary" : "default"}
@@ -652,8 +678,8 @@ const RevenuePage = () => {
               value={chartType}
               onChange={setChartType}
               options={[
-                { label: "📊 Grafik Batang", value: "column", icon: <BarChartOutlined /> },
-                { label: "📈 Grafik Area", value: "area", icon: <RiseOutlined /> },
+                { label: "Grafik Batang", value: "column", icon: <BarChartOutlined /> },
+                { label: "Grafik Area", value: "area", icon: <RiseOutlined /> },
               ]}
             />
           </Space>

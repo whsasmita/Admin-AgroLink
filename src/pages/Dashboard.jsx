@@ -33,7 +33,9 @@ import {
   RightOutlined,
   FundProjectionScreenOutlined,
   BarChartOutlined,
+  LineChartOutlined,
 } from "@ant-design/icons";
+import { FaSeedling, FaRocket, FaMoneyBillWave } from "react-icons/fa6";
 import { Column, Area } from "@ant-design/plots";
 import { getDashboardStats } from "../services/api";
 import { Link } from "react-router-dom";
@@ -97,80 +99,6 @@ const SERVICE_METADATA = {
   },
 };
 
-// Fallback data layanan jika backend response sedang memuat
-const DEFAULT_SERVICE_SUMMARIES = [
-  {
-    name: "Pekerja",
-    transaction_count: 257,
-    total_amount: 76787000,
-    gross_profit: 6142960,
-    gateway_fee: 730492,
-    net_profit: 5412468,
-    total_mitra_share: 70644040,
-    percentage: 44.77,
-  },
-  {
-    name: "Ekspedisi",
-    transaction_count: 152,
-    total_amount: 43780000,
-    gross_profit: 4815800,
-    gateway_fee: 447408,
-    net_profit: 4368392,
-    total_mitra_share: 38964200,
-    percentage: 25.53,
-  },
-  {
-    name: "E-Commerce",
-    transaction_count: 74,
-    total_amount: 19226000,
-    gross_profit: 1922600,
-    gateway_fee: 224389,
-    net_profit: 1698211,
-    total_mitra_share: 17303400,
-    percentage: 11.21,
-  },
-  {
-    name: "Chatbot Premium",
-    transaction_count: 75,
-    total_amount: 12487500,
-    gross_profit: 12487500,
-    gateway_fee: 180972,
-    net_profit: 12306528,
-    total_mitra_share: 0,
-    percentage: 7.28,
-  },
-  {
-    name: "Tukang",
-    transaction_count: 18,
-    total_amount: 5297000,
-    gross_profit: 423760,
-    gateway_fee: 48560,
-    net_profit: 375200,
-    total_mitra_share: 4873240,
-    percentage: 3.09,
-  },
-  {
-    name: "Peternak",
-    transaction_count: 14,
-    total_amount: 4689000,
-    gross_profit: 375120,
-    gateway_fee: 41983,
-    net_profit: 333137,
-    total_mitra_share: 4313880,
-    percentage: 2.73,
-  },
-  {
-    name: "Kemitraan",
-    transaction_count: 3,
-    total_amount: 9250000,
-    gross_profit: 1387500,
-    gateway_fee: 12000,
-    net_profit: 1375500,
-    total_mitra_share: 7862500,
-    percentage: 5.39,
-  },
-];
-
 const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -201,34 +129,35 @@ const Dashboard = () => {
   const financialSummary = useMemo(() => {
     const fin = dashboardData?.financial_summary;
     return {
-      total_transactions: fin?.total_transactions ?? 593,
-      total_gmv: fin?.total_gmv ?? 171516500,
-      total_gross_profit: fin?.total_gross_profit ?? 27555240,
-      total_gateway_fee: fin?.total_gateway_fee ?? 1685804,
-      total_net_profit: fin?.total_net_profit ?? 25869436,
-      total_mitra_share: fin?.total_mitra_share ?? 143961260,
-      phase1_transactions: fin?.phase1_transactions ?? 236,
-      phase1_gmv: fin?.phase1_gmv ?? 66322000,
-      phase1_net_profit: fin?.phase1_net_profit ?? 5396060,
-      phase2_transactions: fin?.phase2_transactions ?? 357,
-      phase2_gmv: fin?.phase2_gmv ?? 105194500,
-      phase2_net_profit: fin?.phase2_net_profit ?? 20473376,
+      total_transactions: fin?.total_transactions ?? 0,
+      total_gmv: fin?.total_gmv ?? 0,
+      total_gross_profit: fin?.total_gross_profit ?? 0,
+      total_gateway_fee: fin?.total_gateway_fee ?? 0,
+      total_net_profit: fin?.total_net_profit ?? 0,
+      total_mitra_share: fin?.total_mitra_share ?? 0,
+      phase1_transactions: fin?.phase1_transactions ?? 0,
+      phase1_gmv: fin?.phase1_gmv ?? 0,
+      phase1_net_profit: fin?.phase1_net_profit ?? 0,
+      phase2_transactions: fin?.phase2_transactions ?? 0,
+      phase2_gmv: fin?.phase2_gmv ?? 0,
+      phase2_net_profit: fin?.phase2_net_profit ?? 0,
     };
   }, [dashboardData]);
 
   // Ekstraksi User Stats dari endpoint GET /admin/dashboard-stats
   const userStats = useMemo(() => {
     const u = dashboardData?.user_stats;
-    const total_users = u?.total_users ?? 1180;
-    const total_worker = u?.total_worker ?? 652;
-    const total_farmer = u?.total_farmer ?? 268;
-    const total_driver = u?.total_driver ?? 186;
-    const total_general = u?.total_general ?? 69;
-    const total_mitra = u?.total_mitra ?? 4;
-    const total_admin = u?.total_admin ?? 1;
+    const total_users = u?.total_users ?? 0;
+    const total_worker = u?.total_worker ?? 0;
+    const total_farmer = u?.total_farmer ?? 0;
+    const total_driver = u?.total_driver ?? 0;
+    const total_general = u?.total_general ?? 0;
+    const total_mitra = u?.total_mitra ?? 0;
+    const total_admin = u?.total_admin ?? 0;
 
     // Perhitungan persentase masing-masing role
-    const getPct = (val) => ((val / total_users) * 100).toFixed(1);
+    const getPct = (val) =>
+      total_users > 0 ? ((val / total_users) * 100).toFixed(1) : "0.0";
 
     return {
       total_users,
@@ -249,9 +178,7 @@ const Dashboard = () => {
 
   // Ekstraksi Service Summaries dari endpoint GET /admin/dashboard-stats
   const serviceSummaries = useMemo(() => {
-    const list = dashboardData?.service_summaries?.length
-      ? dashboardData.service_summaries
-      : DEFAULT_SERVICE_SUMMARIES;
+    const list = dashboardData?.service_summaries || [];
 
     return list.map((item) => {
       const meta = SERVICE_METADATA[item.name] || {
@@ -385,7 +312,8 @@ const Dashboard = () => {
   // Data Antrean "Butuh Tindakan"
   const actionQueueData = useMemo(() => {
     const pendingPayouts = dashboardData?.action_queue?.pending_payouts ?? 2;
-    const pendingVerifications = dashboardData?.action_queue?.pending_verifications ?? 3;
+    const pendingVerifications =
+      dashboardData?.action_queue?.pending_verifications ?? 3;
 
     return [
       {
@@ -394,12 +322,12 @@ const Dashboard = () => {
         link: "/payouts",
         color: "#cf1322",
       },
-      {
-        title: "Verifikasi Dokumen Tertunda",
-        count: pendingVerifications,
-        link: "/verifications",
-        color: "#fa8c16",
-      },
+      // {
+      //   title: "Verifikasi Dokumen Tertunda",
+      //   count: pendingVerifications,
+      //   link: "/verifications",
+      //   color: "#fa8c16",
+      // },
       {
         title: "Transaksi Belum Selesai",
         count: 0,
@@ -1049,9 +977,33 @@ const Dashboard = () => {
                 value={activeChartTab}
                 onChange={setActiveChartTab}
                 options={[
-                  { label: "💰 Nilai GMV", value: "service_amount" },
-                  { label: "📊 Transaksi", value: "service_count" },
-                  { label: "📈 Tren Harian", value: "revenue_trend" },
+                  {
+                    label: (
+                      <Space size={6}>
+                        <DollarCircleOutlined style={{ color: "#10b981" }} />
+                        <span>Nilai GMV</span>
+                      </Space>
+                    ),
+                    value: "service_amount",
+                  },
+                  {
+                    label: (
+                      <Space size={6}>
+                        <BarChartOutlined style={{ color: "#1677ff" }} />
+                        <span>Transaksi</span>
+                      </Space>
+                    ),
+                    value: "service_count",
+                  },
+                  {
+                    label: (
+                      <Space size={6}>
+                        <LineChartOutlined style={{ color: "#8b5cf6" }} />
+                        <span>Tren Harian</span>
+                      </Space>
+                    ),
+                    value: "revenue_trend",
+                  },
                 ]}
               />
             }
