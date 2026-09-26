@@ -1,13 +1,13 @@
 import axios from "axios";
 
 // Buat instance Axios
-const api = axios.create({
-  baseURL: "http://localhost:8090/api/v1", // Sesuaikan dengan URL API Go Anda
-});
-
 // const api = axios.create({
-//   baseURL: "https://api.goagrolink.com/api/v1", // Sesuaikan dengan URL API Go Anda
+//   baseURL: "http://localhost:8090/api/v1", // Sesuaikan dengan URL API Go Anda
 // });
+
+const api = axios.create({
+  baseURL: "https://api.goagrolink.com/api/v1", // Sesuaikan dengan URL API Go Anda
+});
 
 // [PENTING] Interceptor untuk Menambahkan Token ke Setiap Request
 // Ini adalah "penjaga" yang akan menyuntikkan token Anda secara otomatis
